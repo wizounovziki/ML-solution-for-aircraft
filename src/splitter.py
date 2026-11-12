@@ -221,17 +221,8 @@ def create_joint_split_manifest(
         & label_available.notna()
         & label_available.lt(calibration_cutoff)
     )
-    policy_mask = (
-        validation_entity
-        & validation_time
-        & flight_date.ge(calibration_cutoff)
-        & target.notna()
-    )
-    test_mask = (
-        manifest["outer_partition"].eq("test")
-        & flight_date.ge(validation_cutoff)
-        & target.notna()
-    )
+    policy_mask = validation_entity & validation_time & flight_date.ge(calibration_cutoff)
+    test_mask = manifest["outer_partition"].eq("test") & flight_date.ge(validation_cutoff)
     for name, mask in [("calibration", calibration_mask), ("policy", policy_mask), ("test", test_mask)]:
         manifest.loc[mask, "final_use"] = name
         manifest.loc[mask, "exclusion_reason"] = ""

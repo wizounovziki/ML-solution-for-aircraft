@@ -6,6 +6,7 @@ import pandas as pd
 from src.threshold import (
     alert_policy_report,
     apply_batch_alert_capacity,
+    evaluate_complete_alert_policy,
     event_recall,
     optimize_mro_threshold,
 )
@@ -56,3 +57,19 @@ def test_batch_below_twenty_components_has_zero_capacity() -> None:
     assert result["batch_capacity"].eq(0).all()
     assert result["final_alert"].sum() == 0
     assert result["capacity_deferred"].sum() == 19
+
+
+def test_pending_labels_still_count_toward_alert_burden() -> None:
+    frame = pd.DataFrame(
+        {
+            "unscheduled_removal_within_30_cycles": pd.array([0, pd.NA, 1], dtype="Int64"),
+            "risk_score": [0.2, 0.8, 0.9],
+            "final_alert": [True, True, True],
+            "removal_event_id": [None, None, "E1"],
+        }
+    )
+    metrics = evaluate_complete_alert_policy(frame)
+    assert metrics["alert_rate"] == 1.0
+    assert metrics["pending_outcome_alerts"] == 1
+    assert metrics["event_recall"] == 1.0
+    assert metrics["labeled_components"] == 2

@@ -14,9 +14,10 @@
 - 逻辑回归与 LightGBM 模型封装、原生类别映射及冻结模型 sigmoid/isotonic 校准。
 - 事件召回、每轮 `floor(0.05 × N)` 硬容量、30 循环重复警报抑制和容量延后留痕。
 - LightGBM 原始 log-odds SHAP、高风险原因卡、冷启动混合评分和 PSI。
-- 12 项自动化测试。
+- 13 项自动化测试。
+- 完整规模四候选训练、sigmoid 校准、验证选择和独立冻结测试。
 
-**尚未完成完整数据规模下的双模型训练、验证模型选择、冻结测试和最终业务指标。当前结果不能解释为模型已经达标。**
+最终 LightGBM 不加权模型在冻结测试上达到 **100%（20/20）事件召回**、**每 100 部件 0.543 次警报**，123 个批次均未超容量。详见 [完整实验报告](MODEL_EVALUATION.md)。该结果来自合成数据，不代表真实机队表现。
 
 ## 环境
 
@@ -52,13 +53,35 @@ uv run python -m src.split_data \
 
 外层训练、验证、测试的飞机和部件互斥；校准与策略属于同一外层验证分区。
 
+## 完整训练与冻结评估
+
+正式实验使用独立的新输出目录；已有冻结实验带防重复测试标记，不能直接覆盖。
+
+```bash
+uv run python -m src.build_features \
+  --data-dir data/generated/mock_v0_2_0 \
+  --output artifacts/features/mock_v0_2_0/features.parquet
+
+uv run python -m src.train_models \
+  --features artifacts/features/mock_v0_2_0/features.parquet \
+  --split artifacts/splits/mock_v0_2_0/split_manifest.parquet \
+  --output artifacts/experiments/validation_repro
+
+uv run python -m src.evaluate_frozen \
+  --experiment artifacts/experiments/validation_repro \
+  --features artifacts/features/mock_v0_2_0/features.parquet \
+  --split artifacts/splits/mock_v0_2_0/split_manifest.parquet \
+  --data-dir data/generated/mock_v0_2_0 \
+  --output artifacts/frozen_test/validation_repro
+```
+
 ## 测试与展示
 
 ```bash
 uv run pytest -q
 ```
 
-`notebooks/poc_evaluation.ipynb` 用于 EDA、划分证据及后续冻结实验报告。Notebook 不承担核心算法实现。
+`notebooks/poc_evaluation.ipynb` 用于 EDA、划分证据及冻结实验报告。Notebook 不承担核心算法实现。
 
 ## 文档
 

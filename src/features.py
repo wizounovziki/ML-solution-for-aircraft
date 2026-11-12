@@ -17,11 +17,24 @@ def add_missing_indicators(
     return result
 
 
-def _slope(cycles: np.ndarray, values: np.ndarray) -> float:
+def _window_statistics(cycles: np.ndarray, values: np.ndarray) -> tuple[np.ndarray, ...]:
     valid = ~np.isnan(values)
-    if valid.sum() < 2 or np.unique(cycles[valid]).size < 2:
-        return np.nan
-    return float(np.polyfit(cycles[valid], values[valid], 1)[0])
+    count = valid.sum(axis=0)
+    safe_count = np.maximum(count, 1)
+    value_sum = np.where(valid, values, 0.0).sum(axis=0)
+    mean = value_sum / safe_count
+    centered = np.where(valid, values - mean, 0.0)
+    variance = (centered**2).sum(axis=0) / safe_count
+    x_mean = (cycles[:, None] * valid).sum(axis=0) / safe_count
+    x_centered = np.where(valid, cycles[:, None] - x_mean, 0.0)
+    numerator = (x_centered * centered).sum(axis=0)
+    denominator = (x_centered**2).sum(axis=0)
+    slope = np.divide(numerator, denominator, out=np.full(values.shape[1], np.nan), where=denominator > 0)
+    mean[count == 0] = np.nan
+    std = np.sqrt(variance)
+    std[count == 0] = np.nan
+    slope[count < 2] = np.nan
+    return mean, std, slope
 
 
 def add_causal_rolling_features(
@@ -45,39 +58,43 @@ def add_causal_rolling_features(
     missing = required.difference(frame.columns)
     if missing:
         raise ValueError(f"Missing causal feature columns: {sorted(missing)}")
-    work = frame.copy()
+    work = frame.copy().reset_index(drop=True)
     for column in [event_time_col, available_col, snapshot_time_col]:
         work[column] = pd.to_datetime(work[column], errors="coerce", utc=True)
     if work[[event_time_col, available_col, snapshot_time_col]].isna().any().any():
         raise ValueError("Causal features require valid event, availability, and snapshot times")
-    feature_names = [
-        f"{sensor}_{stat}_last_{window}_cycles"
+
+    feature_arrays = {
+        f"{sensor}_{stat}_last_{window}_cycles": np.full(len(work), np.nan)
         for sensor in sensor_columns
         for window in windows
         for stat in ("mean", "std", "slope_per_cycle")
-    ]
-    for name in feature_names:
-        work[name] = np.nan
-
+    }
     for _, group in work.groupby(component_col, sort=False):
         group = group.sort_values([cycle_col, snapshot_time_col])
-        for row in group.itertuples():
-            snapshot_time = getattr(row, snapshot_time_col)
-            cycle = getattr(row, cycle_col)
-            history = group.loc[
-                group[event_time_col].le(snapshot_time)
-                & group[available_col].le(snapshot_time)
-                & group[cycle_col].le(cycle)
-            ]
+        output_index = group.index.to_numpy()
+        cycles = group[cycle_col].to_numpy(dtype=float)
+        event_ns = group[event_time_col].astype("int64").to_numpy()
+        available_ns = group[available_col].astype("int64").to_numpy()
+        snapshot_ns = group[snapshot_time_col].astype("int64").to_numpy()
+        values = group[list(sensor_columns)].to_numpy(dtype=float)
+        for row_index in range(len(group)):
             for window in windows:
-                window_history = history.loc[history[cycle_col].gt(cycle - window)]
-                for sensor in sensor_columns:
-                    values = pd.to_numeric(window_history[sensor], errors="coerce").to_numpy(dtype=float)
-                    cycles = window_history[cycle_col].to_numpy(dtype=float)
-                    prefix = f"{sensor}"
-                    work.at[row.Index, f"{prefix}_mean_last_{window}_cycles"] = np.nanmean(values) if np.any(~np.isnan(values)) else np.nan
-                    work.at[row.Index, f"{prefix}_std_last_{window}_cycles"] = np.nanstd(values) if np.any(~np.isnan(values)) else np.nan
-                    work.at[row.Index, f"{prefix}_slope_per_cycle_last_{window}_cycles"] = _slope(cycles, values)
+                start = np.searchsorted(cycles, cycles[row_index] - window, side="right")
+                candidate = np.arange(start, row_index + 1)
+                eligible = candidate[
+                    (event_ns[candidate] <= snapshot_ns[row_index])
+                    & (available_ns[candidate] <= snapshot_ns[row_index])
+                ]
+                if not len(eligible):
+                    continue
+                mean, std, slope = _window_statistics(cycles[eligible], values[eligible])
+                for sensor_index, sensor in enumerate(sensor_columns):
+                    for stat, statistics in zip(("mean", "std", "slope_per_cycle"), (mean, std, slope)):
+                        name = f"{sensor}_{stat}_last_{window}_cycles"
+                        feature_arrays[name][output_index[row_index]] = statistics[sensor_index]
+    for name, values in feature_arrays.items():
+        work[name] = values
     work["history_coverage_cycles"] = np.minimum(work["cycles_since_install"], max(windows))
     work["is_cold_start"] = work["cycles_since_install"].lt(5).astype("int8")
     return add_missing_indicators(work, sensor_columns)

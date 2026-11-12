@@ -174,6 +174,33 @@ def alert_policy_report(policy_frame: pd.DataFrame) -> dict[str, Any]:
     }
 
 
+def evaluate_complete_alert_policy(policy_frame: pd.DataFrame) -> dict[str, Any]:
+    target = policy_frame["unscheduled_removal_within_30_cycles"]
+    labeled = policy_frame.loc[target.notna()].copy()
+    labeled_target = labeled["unscheduled_removal_within_30_cycles"].astype(int)
+    metrics = evaluate_alerts(
+        labeled_target,
+        labeled["risk_score"],
+        labeled["final_alert"],
+        labeled["removal_event_id"],
+    )
+    all_alerts = policy_frame["final_alert"].astype(bool)
+    all_count = len(policy_frame)
+    metrics.update(
+        {
+            "alert_rate": float(all_alerts.mean()),
+            "alerts_per_100": float(all_alerts.mean() * 100.0),
+            "false_positives_per_100": float(
+                (all_alerts & target.eq(0)).sum() / all_count * 100.0
+            ),
+            "pending_outcome_alerts": int((all_alerts & target.isna()).sum()),
+            "scored_components": all_count,
+            "labeled_components": len(labeled),
+        }
+    )
+    return metrics
+
+
 def optimize_batch_alert_policy(
     frame: pd.DataFrame,
     target_recall: float = 0.80,
@@ -193,12 +220,7 @@ def optimize_batch_alert_policy(
         report = alert_policy_report(policy)
         if report["over_capacity_batches"] or report["overall_alert_rate"] > max_alert_rate:
             continue
-        metrics = evaluate_alerts(
-            policy["unscheduled_removal_within_30_cycles"],
-            policy["risk_score"],
-            policy["final_alert"],
-            policy["removal_event_id"],
-        )
+        metrics = evaluate_complete_alert_policy(policy)
         key = (metrics["event_recall"], -report["overall_alert_rate"], float(threshold))
         if best is None or key > best["key"]:
             best = {
