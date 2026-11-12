@@ -68,6 +68,66 @@ The model, calibrator, threshold, and alert policy were selected using validatio
 - Cold-start fallback, missing-data handling, and Population Stability Index (PSI) monitoring utilities.
 - An executed evaluation Notebook and 15 automated tests.
 
+## Project structure
+
+```text
+ML-solution-for-aircraft/
+├── README.md                         # English project report and usage guide
+├── DATASET.md                        # Dataset schema, labels, and availability rules
+├── mro-requirements-and-concept-design.md
+│                                     # Architecture, production design, and research review
+├── mro-technical-selection-review.md # Model and engineering trade-off review
+├── mro-TODO.md                       # Implementation and acceptance checklist
+├── pyproject.toml                    # Python and dependency configuration
+├── uv.lock                           # Reproducible dependency lock file
+├── .cursorrules                      # Project coding and anti-leakage rules
+├── .gitignore
+├── configs/
+│   └── mock_data.yaml                # Dataset size, seed, prevalence, and quality settings
+├── data/
+│   ├── generate_mock_data.py         # Dataset generation entry point
+│   └── mro_dataset.csv               # Complete combined mock dataset (~48 MB)
+├── notebooks/
+│   └── poc_evaluation.ipynb          # Executed EDA, metrics, PR curve, and SHAP report
+├── reports/
+│   ├── figures/
+│   │   └── shap_summary.png          # Global LightGBM SHAP summary
+│   ├── high_risk_cards.md            # Two readable high-risk component cards
+│   ├── high_risk_cards.json          # Structured cards with member features
+│   ├── false_positive_card.json      # False-positive explanation example
+│   ├── shap_feature_importance.csv   # Ranked mean absolute SHAP values
+│   ├── explanation_manifest.json     # Explanation provenance and additivity checks
+│   ├── test_predictions_with_explanations.csv
+│   └── test_predictions_with_explanations.parquet
+├── src/
+│   ├── __init__.py                   # Package version
+│   ├── config.py                     # SLA, feature, and output contracts
+│   ├── mock_data.py                  # Core synthetic-data generator
+│   ├── validation.py                 # Schema, label, timing, and integrity checks
+│   ├── validate_data.py              # Dataset-validation CLI
+│   ├── splitter.py                   # Connected groups and temporal purging
+│   ├── split_data.py                 # Frozen split-manifest CLI
+│   ├── features.py                   # Causal rolling features and feature eligibility
+│   ├── build_features.py             # Full-scale feature-building CLI
+│   ├── models.py                     # Logistic regression, LightGBM, and calibration
+│   ├── training.py                   # Candidate fitting and validation selection
+│   ├── train_models.py               # Training entry point
+│   ├── threshold.py                  # Event metrics, thresholds, and batch capacity
+│   ├── evaluate_frozen.py            # Independent frozen-test evaluation
+│   ├── explain.py                    # SHAP values, reason cards, and reason codes
+│   ├── generate_explanations.py      # Explanation-artifact generation CLI
+│   ├── production.py                 # Cold-start fallback and PSI monitoring
+│   └── package_dataset.py            # Optional CRC-validated dataset ZIP packaging
+└── tests/
+    ├── test_no_leakage.py            # Temporal, entity, and availability tests
+    ├── test_models.py                # Training, calibration, and SHAP integration
+    ├── test_threshold.py             # Event recall and alert-capacity tests
+    ├── test_production.py            # Cold-start and PSI tests
+    └── test_explanations.py          # Feature grouping and applicability tests
+```
+
+The directories `data/generated/` and `artifacts/` are created locally by the reproduction commands and are intentionally excluded from Git. The required combined dataset and report-ready explanation artifacts are included in the repository.
+
 ## Dataset
 
 Mock Dataset version `0.2.0` is included directly in this Git repository:
@@ -274,15 +334,48 @@ PSI utilities use training-reference quantile bins and a separate missing bin. M
 
 The production design targets AMOS/Maximo-assisted inspection prioritization, with final maintenance decisions retained by authorized engineers.
 
-## Reproduction
+## Usage guide
 
-### Environment
-
-Python 3.12 and dependencies are managed with `uv` and locked in `uv.lock`.
+### Quick start
 
 ```bash
+git clone https://github.com/wizounovziki/ML-solution-for-aircraft.git
+cd ML-solution-for-aircraft
 uv sync
+uv run pytest -q
 ```
+
+Python 3.12 and all dependencies are managed by `uv` and locked in `uv.lock`.
+
+### Inspect the delivered results
+
+No model training is needed to inspect the existing outputs:
+
+| Intended use | File or location |
+| --- | --- |
+| Read methods, results, decisions, and limitations | This README |
+| Review the dataset schema | `DATASET.md` |
+| Download the complete mock dataset | `data/mro_dataset.csv` |
+| Open the executed visual report | `notebooks/poc_evaluation.ipynb` |
+| Inspect global feature attribution | `reports/figures/shap_summary.png` |
+| Read high-risk component explanations | `reports/high_risk_cards.md` |
+| Analyze row-level scores, alerts, and reason codes | `reports/test_predictions_with_explanations.parquet` |
+
+### Reproduce the complete pipeline
+
+Run the following stages in order. Each stage has a dedicated CLI and writes versioned local artifacts:
+
+1. Generate and validate the mock dataset.
+2. Create the frozen entity/time split manifest.
+3. Build causal features.
+4. Train and calibrate all four candidates, then select and freeze the validation winner.
+5. Load the frozen bundle and evaluate the test partition.
+6. Generate SHAP summaries and explanation cards.
+7. Execute the Notebook and run the automated tests.
+
+The exact commands for every stage follow below. Use a new experiment directory for an independent training run so that existing frozen artifacts remain available for comparison.
+
+## Reproduction
 
 ### Generate and validate the dataset
 
