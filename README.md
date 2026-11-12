@@ -18,6 +18,44 @@ The frozen LightGBM model achieved:
 
 These results come from synthetic data with deliberately embedded degradation signatures. They demonstrate the pipeline and evaluation design, not expected performance on a real fleet.
 
+## Design narrative
+
+### 1. From public benchmarks to business-specific mock data
+
+The work began with a review of related public datasets and open-source projects, including NGAFID aviation maintenance flights, NASA C-MAPSS/N-CMAPSS degradation trajectories, FAA Service Difficulty Reports, MaintNet maintenance logs, and several RUL/maintenance repositories. The review found useful flight telemetry, maintenance text, and run-to-failure examples, but no single public dataset combined aircraft and component histories, sensors, fault codes, maintenance events, and precise unscheduled-removal timing for this 30-cycle task.
+
+The dataset was therefore constructed around the required business process rather than repurposing a mismatched label. The generator creates aircraft, component installations, usage accumulation, sensor trajectories, fault events, maintenance actions, and removal events first, then derives snapshot labels from those events. Degradation patterns, operating environments, missingness, outliers, reporting delays, cold starts, and drift were added to exercise the intended production logic. The resulting positive rate is 2.143%, close to the task's approximately 2% prevalence.
+
+### 2. Why logistic regression and LightGBM were selected
+
+Two complementary model families were chosen before final testing:
+
+- **Regularized logistic regression** provides an interpretable and computationally inexpensive baseline. Spline transformations allow nonlinear marginal effects while retaining a transparent linear decision structure.
+- **LightGBM** is suited to the mixed numerical/categorical table and can model nonlinear degradation, interactions between sensors and usage, and missing values without requiring a large neural architecture.
+
+This pairing separates the value of feature engineering and model complexity: if both perform similarly, logistic regression remains a valid operational choice; if interactions matter, LightGBM can demonstrate the incremental benefit. CatBoost, XGBoost, survival models, and temporal neural networks remain conditional extensions rather than additional defaults.
+
+Both families were evaluated with and without imbalance weighting. Unweighted LightGBM was ultimately frozen because it achieved full validation-event detection with no known false positives and the lowest calibrated Brier score among the candidates.
+
+### 3. Feature-selection principles
+
+Feature selection was based on causal eligibility and engineering coverage, not on target-driven ranking before the split:
+
+- **Point-in-time validity:** every historical value must have occurred and become available by the snapshot time.
+- **Business coverage:** usage, installation, sensor condition, fault history, maintenance history, operating environment, and data quality each represent a distinct source of operational evidence.
+- **Leakage exclusion:** snapshot keys, aircraft/component identifiers, installation identifiers, removal identifiers, labels, and label-availability timestamps are excluded from model inputs.
+- **Useful temporal summaries:** current values and 5/15/30-cycle means, variability, and slopes describe both condition and recent change.
+- **Model-specific representation:** logistic regression uses training-fitted imputation, splines, scaling, and one-hot encoding; LightGBM uses native numerical missingness and training-defined categorical mappings.
+- **Post-hoc review:** SHAP supports model review after selection, while feature definitions remain fixed across training, validation, and testing.
+
+The resulting feature set contains 70 numerical and five categorical inputs. Related rolling features are grouped during explanation so that repeated windows of one signal do not dominate every reason slot.
+
+### 4. Tuning, evaluation, and outcome
+
+Tuning used a small, reproducible candidate set covering class-weight choices, model configuration, sigmoid calibration, alert thresholds, and duplicate suppression. Every candidate was replayed under the same per-batch capacity and event-detection rules. Selection prioritized event recall, alert burden, false positives, calibration, and computational cost rather than ROC-AUC alone.
+
+The model, calibrator, threshold, and alert policy were selected using validation data and frozen before a separate script ran the test partition. The final result met both objectives: **100% event recall (20/20)** and **0.543 alerts per 100 components**, with no over-capacity batch. Detailed validation and test evidence appears below.
+
 ## Repository contents
 
 - Reproducible synthetic dataset and generator.
@@ -110,7 +148,7 @@ Four candidates were compared under identical outer splits and business rules:
 - LightGBM without imbalance weighting.
 - LightGBM with positive-class weighting.
 
-All candidates use sigmoid calibration on natural-prevalence calibration data. `FrozenEstimator` with `CalibratedClassifierCV` prevents unintended stratified cross-validation on the calibration set.
+All candidates use sigmoid calibration on natural-prevalence calibration data. `FrozenEstimator` with `CalibratedClassifierCV` calibrates the already fitted model on the designated calibration partition.
 
 ### 4. Business alert policy
 
@@ -147,7 +185,7 @@ Frozen configuration:
 - Maximum alert rate: `0.05`
 - Raw explanation space: LightGBM log-odds
 
-The model, category maps, calibrator, cold-start baselines, feature list, threshold, and policy were frozen before final testing. A separate script loaded these artifacts for the test run and created a marker preventing silent repeated evaluation.
+The model, category maps, calibrator, cold-start baselines, feature list, threshold, and policy were frozen before final testing. A separate script loaded these artifacts for the test run and recorded a completion marker.
 
 ## Frozen-test results
 
@@ -176,7 +214,7 @@ Connected-group cluster bootstrap with 200 resamples produced:
 - Event-recall 95% interval: `[1.000, 1.000]`.
 - Overall alert-rate 95% interval: `[0.004241, 0.006285]`, equivalent to approximately `[0.424, 0.629]` alerts per 100 components.
 
-All four component families had 100% event recall, with six engine, five avionics, five brake-actuator, and four hydraulic-pump events. Some part-number slices contain no positive events; a displayed zero recall in those slices is not a missed-event claim.
+All four component families had 100% event recall, with six engine, five avionics, five brake-actuator, and four hydraulic-pump events. Part-number slices without positive events are labeled by event count and omitted from event-recall interpretation.
 
 ## Explainability
 
@@ -201,7 +239,7 @@ Each card includes actual values, contribution direction, grouped raw-score cont
 - [False-positive explanation](reports/false_positive_card.json)
 - [Explanation-enhanced predictions](reports/test_predictions_with_explanations.parquet)
 
-All 32 final alerts have reason codes. Explanation generation does not alter scores, alerts, or capacity decisions. The frozen test had no false-negative event, so no synthetic false-negative example was fabricated.
+All 32 final alerts have reason codes, with scores, alerts, and capacity decisions unchanged by explanation generation. No false-negative event occurred in the frozen test.
 
 ## Production design
 
@@ -228,13 +266,13 @@ For components with fewer than five cycles since installation, the scoring path 
 
 ### Missing and delayed data
 
-Missingness indicators are preserved before imputation. Logistic regression uses training-fitted median imputation; LightGBM uses native numerical missing-value handling. Late records cannot enter earlier snapshots. Critically unavailable inputs trigger a baseline/rule-based fallback rather than an unsupported precise score.
+Missingness indicators are preserved before imputation. Logistic regression uses training-fitted median imputation; LightGBM uses native numerical missing-value handling. Late records are excluded from earlier snapshots, and a baseline/rule-based fallback is used when critical inputs are unavailable.
 
 ### Drift and retraining
 
 PSI utilities use training-reference quantile bins and a separate missing bin. Monitoring covers top SHAP features, score distributions, unknown categories, missingness, alert rates, and delayed outcome metrics. Retraining requires matured labels, renewed entity/time validation, business-policy replay, approval, and rollback readiness.
 
-This PoC does not implement a live AMOS/Maximo integration. Scores support inspection prioritization only; they do not autonomously remove parts, release aircraft, or establish airworthiness.
+The production design targets AMOS/Maximo-assisted inspection prioritization, with final maintenance decisions retained by authorized engineers.
 
 ## Reproduction
 
@@ -274,7 +312,7 @@ uv run python -m src.train_models \
   --output artifacts/experiments/validation_repro
 ```
 
-Use a new experiment directory for each independent run. Existing frozen experiments cannot be silently overwritten.
+Each independent run uses a new experiment directory to preserve frozen artifacts.
 
 ### Evaluate the frozen model and generate explanations
 
@@ -314,19 +352,18 @@ The executed Notebook includes EDA, split evidence, candidate comparison, the fr
 - [Implementation and acceptance checklist](mro-TODO.md)
 - [Evaluation Notebook](notebooks/poc_evaluation.ipynb)
 
-The design document also records the reviewed NGAFID, NASA C-MAPSS/N-CMAPSS, FAA SDR, MaintNet, and related open-source resources. Their labels differ from this task and are not mixed with the mock-data evaluation.
+The design document records the reviewed NGAFID, NASA C-MAPSS/N-CMAPSS, FAA SDR, MaintNet, and related open-source resources. These resources informed the design; this report evaluates the task-specific mock dataset.
 
 ## Limitations and future work
 
 - The synthetic degradation mechanism makes some signals easier to learn than real MRO data.
-- Only 20 independent unscheduled-removal events are present in the frozen test; the confidence interval cannot establish stable real-world recall.
-- Scheduled removals are treated as censored competing events, defining a specific evaluation population. Selection bias and competing-risk modeling require attention with real data.
-- The current data do not actually simulate cross-aircraft component transfers, although the splitter implements the required connected-group logic.
-- Aggregated rolling features may discard useful high-frequency temporal patterns.
-- Strict hard capacity produces zero alerts for batches below 20 components; operational batch aggregation or an explicitly approved alternative would be needed.
-- Ten test alerts had pending outcomes. They count toward workload, but final false-positive assessment must be refreshed after label maturity.
-- Calibration can degrade under fleet, time, and maintenance-policy changes.
-- SHAP describes model attribution, not proven physical causality.
-- Live production integration, regulatory assurance, and real-fleet validation remain outside this PoC.
+- The frozen test contains 20 independent unscheduled-removal events, so real-fleet performance remains uncertain.
+- Scheduled removals define a censored competing-event population; real data should include selection-bias and competing-risk analysis.
+- The splitter supports cross-aircraft transfers, while an explicit transfer scenario remains future data work.
+- Rolling aggregates may discard useful high-frequency temporal patterns.
+- Strict hard capacity gives batches below 20 components zero alert capacity and requires an operational batching decision.
+- Ten test alerts have pending outcomes and require follow-up after label maturity.
+- Calibration can drift across fleets and time, and SHAP attribution describes model behavior rather than physical causality.
+- Real-fleet validation, live system integration, and regulatory assurance are future production steps.
 
 Future work includes real-data external validation, cross-aircraft transfer scenarios, CatBoost as an evidence-gated extension, competing-risk or survival models, temporal trajectory models, uncertainty estimation, threshold-neighborhood analysis, calibration plots, and cost-sensitive maintenance optimization.
