@@ -1,0 +1,17 @@
+dataset_version: "0.2.0"
+seed: 20261112
+start_date: "2022-01-01"
+time_zone: "UTC"
+n_aircraft: 60
+cycles_per_aircraft: 2400
+snapshot_interval_cycles: 5
+prediction_horizon_cycles: 30
+days_per_cycle: 0.75
+unscheduled_removal_probability: 0.85
+mean_life_cycles:
+  ENGINE: 1260
+  HYDRAULIC_PUMP: 1020
+  AVIONICS_COMPUTER: 1380
+  BRAKE_ACTUATOR: 900
+missing_rate: 0.05
+outlier_rate: 0.001

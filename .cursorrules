@@ -1,0 +1,30 @@
+# Role & Architecture Rules (Aircraft MRO Predictive Maintenance)
+
+1. **Strict Zero-Leakage Policy**:
+   - NEVER use random `train_test_split` or standard `KFold`. Always use `temporal_group_purged_split` from `src/splitter.py`, plus an aircraft-grouped split validation check to prove generalization across unseen aircraft tail numbers.
+   - All rolling window features (mean, std, slope/trend over 5, 15, 30 flight cycles) MUST be grouped by `component_id` sorted chronologically, using ONLY historical data up to cycle `t` and records whose `available_at` is visible at `t`.
+   - Never compute global imputation statistics, target encodings, or standard scaling on the full DataFrame before splitting. Encapsulate all preprocessing inside a `sklearn.pipeline.Pipeline` fitted strictly on training data.
+
+2. **Realistic Synthetic Dataset Generation (`data/generate_mock_data.py`)**:
+   - Maintain a 1.8%–2.2% positive label rate (`unscheduled_removal_within_30_cycles == 1`).
+   - Do NOT generate pure white-noise features. Inject physical degradation trajectories for failing components in the 20–35 cycles prior to removal: decreasing `egt_margin`, increasing `vibration_rms`, increasing recent fault frequency, and higher hazard under harsh environments and high cycles since overhaul.
+   - Inject approximately 5% MCAR sensor dropouts, structured missingness on legacy aircraft, and sensor spikes.
+
+3. **Model Comparison & Calibration**:
+   - Compare regularized Logistic Regression (`class_weight='balanced'` as a candidate, with spline/interaction features) and LightGBM configured for extreme imbalance.
+   - Use sigmoid calibration by default and isotonic as an evidence-gated extension. Fit calibrators only on their assigned natural-prevalence data partition.
+
+4. **Business-Driven Evaluation & Explainability**:
+   - Evaluate primarily on PR-AUC, event recall at a 5% alert budget, and false positives per 100 active components.
+   - Apply the frozen per-batch hard-capacity policy and log pre-suppression, post-suppression, and final emitted alerts.
+   - Use `shap.TreeExplainer` on LightGBM raw scores; show calibrated probabilities separately and produce human-readable top-three reason cards with suggested MRO inspection actions.
+
+5. **Production Edge Cases (Must be implemented in code & documented)**:
+   - Cold start below 5 cycles: blend part-number fleet baseline hazard, static aircraft age, and initial installation sensor readings when rolling history is unavailable.
+   - Preserve missingness indicators before median/forward-fill imputation.
+   - Implement Population Stability Index on top SHAP features and prediction score distributions.
+
+6. **Data Availability & Evaluation**:
+   - Require both `event_time <= snapshot_time` and `available_at <= snapshot_time` for historical features.
+   - Do not use a label until `label_available_at` is within the permitted fitting period.
+   - Keep aircraft/component outer partitions disjoint, preserve global time ordering, and keep each removal event in one outer partition.
