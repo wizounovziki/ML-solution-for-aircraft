@@ -18,6 +18,7 @@ from src.config import (
     RANDOM_SEED,
     TARGET_EVENT_RECALL,
 )
+from src.explain import attach_alert_reason_codes
 from src.features import model_feature_columns
 from src.models import (
     calibrate_frozen_model,
@@ -269,7 +270,9 @@ def run_validation_selection(
     selected_policy["calibrator_version"] = "sigmoid_v1"
     selected_policy["policy_version"] = "batch_cap_5pct_suppress_30_v1"
     selected_policy["data_version"] = "mock_v0_2_0"
-    selected_policy["reason_codes"] = ""
+    selected_policy = attach_alert_reason_codes(
+        selected_policy, selected_bundle, selected_row["threshold"]
+    )
     selected_policy.to_parquet(output / "validation_predictions.parquet", index=False)
 
     try:

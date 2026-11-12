@@ -1,0 +1,13 @@
+{
+  "source_test_predictions_sha256": "85312c11f6d8e7e0e8926a495f14a458ed0a820527df69f8c6bf04b8171ff7bf",
+  "freeze_manifest_sha256": "f17eed0cf9c54d6bb266807e8e69bf6ee2fa83ca56ca35ea2de9c223ddaacc74",
+  "summary_rows": 2000,
+  "summary_additivity_max_error": 6.039613253960852e-14,
+  "alert_additivity_max_error": 4.263256414560601e-14,
+  "high_risk_card_count": 2,
+  "false_positive_card": true,
+  "false_negative_card": null,
+  "false_negative_note": "The frozen test had 20/20 detected events; no false-negative event exists to display.",
+  "reason_coded_final_alerts": 32,
+  "final_alerts": 32
+}

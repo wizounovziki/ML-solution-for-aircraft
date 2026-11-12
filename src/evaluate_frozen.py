@@ -12,6 +12,7 @@ import pandas as pd
 from sklearn.metrics import brier_score_loss, roc_auc_score
 
 from src.config import MAX_ALERT_RATE, TARGET_EVENT_RECALL
+from src.explain import attach_alert_reason_codes
 from src.threshold import (
     alert_policy_report,
     apply_batch_alert_capacity,
@@ -117,7 +118,7 @@ def evaluate_frozen(
     decisions["calibrator_version"] = "sigmoid_v1"
     decisions["policy_version"] = "batch_cap_5pct_suppress_30_v1"
     decisions["data_version"] = freeze["data_version"]
-    decisions["reason_codes"] = ""
+    decisions = attach_alert_reason_codes(decisions, bundle, freeze["threshold"])
 
     metrics = evaluate_complete_alert_policy(decisions)
     metrics.update(alert_policy_report(decisions))

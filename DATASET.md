@@ -193,3 +193,19 @@ uv run python -m src.split_data --data-dir data/generated/mock_v0_2_0
 ```
 
 验证覆盖主外键、装机循环核算、事件实际/可用时间、标签成熟、30 循环标签、删失、拆换后在役记录、非计划事件覆盖、1.8%–2.2% 正例率、缺失和合并表一致性。
+
+## 7. 发布包
+
+使用以下命令生成公开数据包：
+
+```bash
+uv run python -m src.package_dataset
+```
+
+输出 `artifacts/packages/mro_mock_dataset_v0_2_0.zip`，包含 21 个文件（规范化表、合并表、Parquet/CSV、配置、清单和本数据字典），ZIP CRC 已验证。
+
+- 大小：36,701,183 字节。
+- SHA-256：`3192e7ef7031abe153a588dd852987346056694ef20e3f517a36b3353c5ba2d3`。
+- 完整合并数据集随公开 GitHub 仓库发布：`data/mro_dataset.csv`（约 48 MB）。
+- 公开下载：https://github.com/wizounovziki/ML-solution-for-aircraft/raw/refs/heads/main/data/mro_dataset.csv
+- 独立 Google Drive/OneDrive 副本不再是必需交付物；上述 ZIP 仅为可选的便捷打包方式。

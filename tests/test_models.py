@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from src.explain import lightgbm_raw_explanations, local_reason_card
+from src.explain import attach_alert_reason_codes, lightgbm_raw_explanations, local_reason_card
 from src.models import (
     calibrate_frozen_model,
     fit_lightgbm_categories,
@@ -53,3 +53,17 @@ def test_logistic_and_lightgbm_calibration_and_raw_shap() -> None:
     )
     assert len(card["top_reasons"]) == 3
     assert "log-odds" in card["raw_score_semantics"]
+
+    decisions = calibration.iloc[:2].copy()
+    decisions["final_alert"] = True
+    decisions["risk_score"] = risk[:2]
+    decisions["component_id"] = ["C1", "C2"]
+    bundle = {
+        "model_family": "lightgbm",
+        "model": model,
+        "numeric_columns": ["x"],
+        "categorical_columns": ["category"],
+        "category_maps": maps,
+    }
+    with_codes = attach_alert_reason_codes(decisions, bundle, 0.5)
+    assert with_codes["reason_codes"].str.len().gt(0).all()
