@@ -1,0 +1,74 @@
+[
+  {
+    "component_id": "ACC2027-C0000219",
+    "removal_event_id": "ACC2027-REM0000147",
+    "snapshot_id": "ACC2027-S00034618",
+    "family": "ENGINE",
+    "risk": 0.9999616688444288,
+    "raw_score": 32.49121984978117,
+    "lead_cycles": 14.0,
+    "final_alert": true,
+    "group_contributions": {
+      "Vibration": 47.004558014434465,
+      "Pressure": 6.23477846446033,
+      "EGT margin": 6.202553137754388,
+      "Current": -5.99889712435622,
+      "Temperature": -3.565444408633712,
+      "Data quality and history": -2.8631407157663067,
+      "Usage and installation": -2.3224593985834683,
+      "Aircraft and environment": -1.8661996700029113,
+      "Component type": -1.7076297297768512,
+      "Recent faults": 0.7401924154093888,
+      "Simulation clock": -0.028973050561563463,
+      "Recent maintenance": 0.016571125484390985
+    }
+  },
+  {
+    "component_id": "ACC2027-C0000581",
+    "removal_event_id": "ACC2027-REM0000384",
+    "snapshot_id": "ACC2027-S00094516",
+    "family": "HYDRAULIC_PUMP",
+    "risk": 0.9997298790380582,
+    "raw_score": 26.844315233375276,
+    "lead_cycles": 11.0,
+    "final_alert": true,
+    "group_contributions": {
+      "Vibration": 45.05533828927335,
+      "Pressure": -4.871248155227584,
+      "Component type": -2.6155732878396534,
+      "Aircraft and environment": -2.5813366726651426,
+      "Temperature": 2.1956287472788554,
+      "Usage and installation": -1.9913175778369543,
+      "Current": 0.9810704077378376,
+      "Recent faults": 0.7401924154093888,
+      "Data quality and history": -0.37797163524645594,
+      "Recent maintenance": -0.33262241874910853,
+      "Simulation clock": -0.0031556686784902643,
+      "EGT margin": 0.0
+    }
+  },
+  {
+    "component_id": "ACC2027-C0000056",
+    "removal_event_id": "ACC2027-REM0000038",
+    "snapshot_id": "ACC2027-S00009100",
+    "family": "AVIONICS_COMPUTER",
+    "risk": 0.9995675835764252,
+    "raw_score": 25.483274053368632,
+    "lead_cycles": 5.0,
+    "final_alert": false,
+    "group_contributions": {
+      "Vibration": 32.89704428016347,
+      "Usage and installation": -6.765295484991039,
+      "Pressure": 6.1988196610721875,
+      "Data quality and history": 2.5749707226091307,
+      "Temperature": 1.9318433107763133,
+      "Aircraft and environment": -1.5144718883254984,
+      "Simulation clock": -1.1042880532759827,
+      "Component type": -0.7746094164613406,
+      "Recent faults": 0.7401924154093888,
+      "Current": 0.6371865909883941,
+      "Recent maintenance": 0.016571125484390985,
+      "EGT margin": 0.0
+    }
+  }
+]

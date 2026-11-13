@@ -1,0 +1,21 @@
+{
+  "run_id": "corrected_v2",
+  "source_predictions_sha256": "3511dd73ecb65437a8868d83871b354aeaa2e63e3611c574cbc9a3ee678c73bc",
+  "frozen_model_sha256": "7669fc73c8393d89f9fcc1e466f0e3b6aa771dd458fa3574fbea1b74337f2fee",
+  "source_fingerprint": "5c33f0225aaa5ff1f8fbd6758938d97782666d45246e55fc9b481401cc06e6fd",
+  "validation_predictions_sha256": "96dd482edc4d8baab259f03f449a021ead9ba7fef3f5ec94ac0bdc6d9f265ffd",
+  "report_sha256": "055105748d6da0ed6cb4fdc8a9b853e5409ff4c33a0d4b82dd5feb7f568ffc7d",
+  "figures": {
+    "acceptance_by_family.png": "ef42398bfd274125009593917197c9cdf010a9519bd6e0517cc227223769384a",
+    "case_explanations.png": "2404631d7a9395a2a944632e5eceb6807a749bd2b457f3ce1a04be3a3227a088",
+    "detected_and_missed_trajectory.png": "d48a830ee20b8e09786da1d2f0ee232303e1515ce970f661b657f2a547e66a3e",
+    "grouped_contributions.png": "62bdabe48582f08833347f5f688e4c89f5c83d6d9338c534d5214d3f78f2da9f",
+    "model_comparison.png": "d359c6aa5e41ad5d2fab1ad78636cfe66c801f652b3569ebeea263c959029c9d",
+    "ranking_and_calibration.png": "c9b3f62771841d1275a1c091d048cd4313ad328ff7c69d76df88c000715c1b23",
+    "validation_threshold.png": "b8799454bd3811995d9582c37c0951996b080a4ff7ce59b380ac042d8140fa2f"
+  },
+  "sample_rows": 2000,
+  "model_intercept": -9.354689210080778,
+  "maximum_grouped_additivity_error": 5.684341886080802e-14,
+  "method": "Read saved predictions and frozen coefficients; sensitivity uses validation predictions only"
+}

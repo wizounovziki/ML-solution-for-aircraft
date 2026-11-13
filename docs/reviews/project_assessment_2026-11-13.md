@@ -1,5 +1,7 @@
 项目检查评估 · 2026-11-13
 
+本记录为修复前审阅。修复后的独立验收与结果图见 [主报告](../../reports/final_report.md)。
+
 检查版本：`536f0c1`。项目：航空部件未来 30 飞行循环内非计划拆换预测。
 
 **当前已形成可运行的研究 PoC。数据、模型比较和解释材料较完整；两处时间泄漏会影响评估可信度，应先修复并重新验证。生产评分和运行保障仍需建设。**
@@ -38,7 +40,7 @@
 
 1. **P1：迟到的原始传感器值进入模型。**
 
-   位置：[features.py:85](C:/Users/WINDOWS/Desktop/mro/src/features.py:85)、[features.py:100](C:/Users/WINDOWS/Desktop/mro/src/features.py:100)、[features.py:135](C:/Users/WINDOWS/Desktop/mro/src/features.py:135)。
+   位置：[features.py:85](https://github.com/wizounovziki/ML-solution-for-aircraft/blob/536f0c1ae173207b870b147a8b06aad3991b83d0/src/features.py#L85)、[features.py:100](https://github.com/wizounovziki/ML-solution-for-aircraft/blob/536f0c1ae173207b870b147a8b06aad3991b83d0/src/features.py#L100)、[features.py:135](https://github.com/wizounovziki/ML-solution-for-aircraft/blob/536f0c1ae173207b870b147a8b06aad3991b83d0/src/features.py#L135)。
 
    `add_causal_rolling_features()` 在计算滚动统计时检查事件时间和可用时间，但返回的数据仍保留当前行的原始传感器值。`model_feature_columns()` 将这些数值列选入模型，冷启动函数也使用原始振动、温度。缺失指示同样把尚不可用的数值标为已观测。
 
@@ -48,7 +50,7 @@
 
 2. **P1：策略选择使用测试开始后才成熟的验证标签。**
 
-   位置：[splitter.py:224](C:/Users/WINDOWS/Desktop/mro/src/splitter.py:224)、[splitter.py:260](C:/Users/WINDOWS/Desktop/mro/src/splitter.py:260)、[training.py:212](C:/Users/WINDOWS/Desktop/mro/src/training.py:212)。
+   位置：[splitter.py:224](https://github.com/wizounovziki/ML-solution-for-aircraft/blob/536f0c1ae173207b870b147a8b06aad3991b83d0/src/splitter.py#L224)、[splitter.py:260](https://github.com/wizounovziki/ML-solution-for-aircraft/blob/536f0c1ae173207b870b147a8b06aad3991b83d0/src/splitter.py#L260)、[training.py:212](https://github.com/wizounovziki/ML-solution-for-aircraft/blob/536f0c1ae173207b870b147a8b06aad3991b83d0/src/training.py#L212)。
 
    策略区按快照日期划分，未限制标签在冻结时点前可用；阈值搜索和候选比较直接使用其中全部非空标签。当前测试从 `2025-09-01` 起，策略区有 **282 条**标签在该日期及之后才可用，包含 **14 条正例快照、4 个拆换事件**。策略标签最晚到 `2025-09-23 12:00 UTC` 才可用。
 
@@ -58,7 +60,7 @@
 
 3. **P2：逻辑回归获选后，训练流程无法完成。**
 
-   位置：[training.py:273](C:/Users/WINDOWS/Desktop/mro/src/training.py:273)、[explain.py:164](C:/Users/WINDOWS/Desktop/mro/src/explain.py:164)。
+   位置：[training.py:273](https://github.com/wizounovziki/ML-solution-for-aircraft/blob/536f0c1ae173207b870b147a8b06aad3991b83d0/src/training.py#L273)、[explain.py:164](https://github.com/wizounovziki/ML-solution-for-aircraft/blob/536f0c1ae173207b870b147a8b06aad3991b83d0/src/explain.py#L164)。
 
    模型比较允许逻辑回归成为最终模型，最终警报解释却只接受 LightGBM。本次在临时目录用现有数据仅运行 `logistic_balanced` 候选，训练及策略搜索完成后实际抛出 `ValueError: Alert reason-code integration currently requires the LightGBM bundle`。此时模型文件已写入，冻结清单尚未生成。
 
@@ -66,7 +68,7 @@
 
 4. **P2：聚类 bootstrap 丢失重复抽样事件的权重。**
 
-   位置：[evaluate_frozen.py:52](C:/Users/WINDOWS/Desktop/mro/src/evaluate_frozen.py:52)、[threshold.py:19](C:/Users/WINDOWS/Desktop/mro/src/threshold.py:19)。
+   位置：[evaluate_frozen.py:52](https://github.com/wizounovziki/ML-solution-for-aircraft/blob/536f0c1ae173207b870b147a8b06aad3991b83d0/src/evaluate_frozen.py#L52)、[threshold.py:19](https://github.com/wizounovziki/ML-solution-for-aircraft/blob/536f0c1ae173207b870b147a8b06aad3991b83d0/src/threshold.py#L19)。
 
    连通组有放回抽样后直接拼接，重复抽中的事件仍保留同一编号；事件召回的 `groupby(event_id)` 再次把它们合并。示例中，检出的 A 组抽中两次、漏检的 B 组抽中一次，按抽样权重应为 `2/3`，当前算法返回 `1/2`。
 
@@ -76,7 +78,7 @@
 
 5. **P2：缺失模型评分时，兜底仍输出 NaN。**
 
-   位置：[production.py:60](C:/Users/WINDOWS/Desktop/mro/src/production.py:60)。
+   位置：[production.py:60](https://github.com/wizounovziki/ML-solution-for-aircraft/blob/536f0c1ae173207b870b147a8b06aad3991b83d0/src/production.py#L60)。
 
    模型评分缺失时将混合权重设为 0，但 `0 * NaN` 仍为 `NaN`。复现中，群体兜底概率为 `0.015`，最终 `risk_score` 却为 `NaN`。下游阈值比较会将其视为未达到阈值。
 
@@ -84,7 +86,7 @@
 
 6. **P2：常量基准特征的 PSI 无法发现数值漂移。**
 
-   位置：[production.py:84](C:/Users/WINDOWS/Desktop/mro/src/production.py:84)。
+   位置：[production.py:84](https://github.com/wizounovziki/ML-solution-for-aircraft/blob/536f0c1ae173207b870b147a8b06aad3991b83d0/src/production.py#L84)。
 
    常量参考分布的临时边界随后被替换成 `[-inf, inf]`，所有非空数值进入同一桶。参考全部为 `1`、当前全部为 `10` 时，PSI 实际返回 `0.0`。
 
@@ -92,7 +94,7 @@
 
 7. **P2：特征排除清单无法阻止新增未来元数据进入训练。**
 
-   位置：[features.py:104](C:/Users/WINDOWS/Desktop/mro/src/features.py:104)。
+   位置：[features.py:104](https://github.com/wizounovziki/ML-solution-for-aircraft/blob/536f0c1ae173207b870b147a8b06aad3991b83d0/src/features.py#L104)。
 
    特征选择默认接纳排除清单以外的所有数值列。数据字典明确禁止的 `remove_cycle` 未在清单中；向输入增加该列后，函数实际将它列为模型输入。当前保存的特征文件没有该列，这是数据表扩展时会触发的缺口。
 
@@ -100,7 +102,7 @@
 
 8. **P2：冻结检查未强制核对模型和源码身份。**
 
-   位置：[training.py:286](C:/Users/WINDOWS/Desktop/mro/src/training.py:286)、[evaluate_frozen.py:97](C:/Users/WINDOWS/Desktop/mro/src/evaluate_frozen.py:97)。
+   位置：[training.py:286](https://github.com/wizounovziki/ML-solution-for-aircraft/blob/536f0c1ae173207b870b147a8b06aad3991b83d0/src/training.py#L286)、[evaluate_frozen.py:97](https://github.com/wizounovziki/ML-solution-for-aircraft/blob/536f0c1ae173207b870b147a8b06aad3991b83d0/src/evaluate_frozen.py#L97)。
 
    冻结清单保存特征与划分哈希、源码指纹，未保存模型哈希。评估前只检查特征与划分，然后直接加载模型；模型哈希到结果输出时才记录。源码指纹也未参与检查。本次当前源码指纹与冻结记录不同，检查不会拒绝；现存模型和冻结清单均与已保存测试结果中的哈希一致。
 
