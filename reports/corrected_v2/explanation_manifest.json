@@ -1,0 +1,14 @@
+{
+  "source_test_predictions_sha256": "3511dd73ecb65437a8868d83871b354aeaa2e63e3611c574cbc9a3ee678c73bc",
+  "freeze_manifest_sha256": "a1e2ad78faa7681c07d645765edba4a086818a4082d8342c2f15036be1a51996",
+  "summary_rows": 2000,
+  "explanation_method": "linear_transformed_zero_reference",
+  "summary_additivity_max_error": 2.1316282072803006e-13,
+  "alert_additivity_max_error": 1.2789769243681803e-13,
+  "high_risk_card_count": 2,
+  "false_positive_card": false,
+  "false_negative_card": null,
+  "false_negative_note": "Event misses are listed in the frozen acceptance report.",
+  "reason_coded_final_alerts": 461,
+  "final_alerts": 461
+}

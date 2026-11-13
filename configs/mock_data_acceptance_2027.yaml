@@ -1,0 +1,18 @@
+dataset_version: "0.3.0-acceptance-2027"
+entity_namespace: "ACC2027"
+seed: 20261113
+start_date: "2027-01-01"
+time_zone: "UTC"
+n_aircraft: 60
+cycles_per_aircraft: 2400
+snapshot_interval_cycles: 5
+prediction_horizon_cycles: 30
+days_per_cycle: 0.75
+unscheduled_removal_probability: 0.85
+mean_life_cycles:
+  ENGINE: 1260
+  HYDRAULIC_PUMP: 1020
+  AVIONICS_COMPUTER: 1380
+  BRAKE_ACTUATOR: 900
+missing_rate: 0.05
+outlier_rate: 0.001

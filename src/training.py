@@ -4,6 +4,7 @@ import hashlib
 import json
 import subprocess
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -28,6 +29,8 @@ from src.models import (
     transform_lightgbm_features,
 )
 from src.production import apply_cold_start_fallback, fit_part_number_baselines
+from src.provenance import source_fingerprint
+from src.splitter import mask_unavailable_selection_labels
 from src.threshold import (
     alert_policy_report,
     apply_batch_alert_capacity,
@@ -63,11 +66,7 @@ def _sha256(path: str | Path) -> str:
 
 
 def _source_fingerprint() -> str:
-    digest = hashlib.sha256()
-    for path in sorted(Path("src").glob("*.py")):
-        digest.update(path.name.encode("utf-8"))
-        digest.update(path.read_bytes())
-    return digest.hexdigest()
+    return source_fingerprint()
 
 
 def _raw_scores(bundle: dict[str, Any], features: pd.DataFrame) -> tuple[pd.DataFrame, np.ndarray]:
@@ -182,17 +181,22 @@ def run_validation_selection(
     features_path: str | Path,
     split_path: str | Path,
     output_dir: str | Path,
+    acceptance_protocol_path: str | Path | None = None,
 ) -> dict[str, Any]:
     output = Path(output_dir)
     if output.exists():
         raise FileExistsError(f"Validation output already exists: {output}")
     output.mkdir(parents=True)
     features = pd.read_parquet(features_path)
-    splits = pd.read_parquet(split_path)[["snapshot_id", "final_use", "entity_group_id"]]
+    splits = pd.read_parquet(split_path)[["snapshot_id", "final_use", "entity_group_id", "selection_cutoff"]]
     frame = features.merge(splits, on="snapshot_id", validate="one_to_one")
     train = frame.loc[frame["final_use"].eq("train")].copy()
     calibration = frame.loc[frame["final_use"].eq("calibration")].copy()
     policy = frame.loc[frame["final_use"].eq("policy")].copy()
+    cutoffs = policy["selection_cutoff"].drop_duplicates()
+    if len(cutoffs) != 1:
+        raise ValueError("Policy requires one explicit selection cutoff")
+    policy = mask_unavailable_selection_labels(policy, cutoffs.iloc[0])
     if min(len(train), len(calibration), len(policy)) == 0:
         raise ValueError("Training, calibration, and policy partitions must be non-empty")
     numeric, categorical = model_feature_columns(frame)
@@ -296,11 +300,24 @@ def run_validation_selection(
         "categorical_columns": categorical,
         "features_sha256": _sha256(features_path),
         "split_sha256": _sha256(split_path),
+        "features_path": str(Path(features_path).resolve()),
+        "split_path": str(Path(split_path).resolve()),
+        "model_sha256": _sha256(output / "frozen_model.joblib"),
+        "frozen_at_utc": datetime.now(timezone.utc).isoformat(),
+        "policy_selection_cutoff": str(cutoffs.iloc[0]),
+        "policy_labeled_records": int(policy[TARGET].notna().sum()),
+        "policy_pending_records": int(policy[TARGET].isna().sum()),
+        "policy_latest_used_label": str(policy.loc[policy[TARGET].notna(), "label_available_at"].max()),
         "code_version": code_version,
         "source_fingerprint": _source_fingerprint(),
         "data_version": "mock_v0_2_0",
         "test_evaluated": False,
     }
+    if acceptance_protocol_path is not None:
+        freeze_manifest["acceptance_protocol_sha256"] = _sha256(acceptance_protocol_path)
+        freeze_manifest["acceptance_protocol"] = json.loads(
+            Path(acceptance_protocol_path).read_text(encoding="utf-8")
+        )
     with (output / "freeze_manifest.json").open("w", encoding="utf-8") as handle:
         json.dump(freeze_manifest, handle, indent=2)
     return freeze_manifest

@@ -57,8 +57,11 @@ def apply_cold_start_fallback(
     fallback = (base * age_factor * initial_sensor_factor).clip(0.0, 1.0)
     model = pd.Series(np.asarray(model_scores, dtype=float), index=frame.index)
     history_weight = (frame["cycles_since_install"] / min_history_cycles).clip(0.0, 1.0)
-    history_weight = history_weight.where(model.notna(), 0.0)
-    blended = history_weight * model + (1.0 - history_weight) * fallback
+    valid_model = np.isfinite(model) & model.between(0.0, 1.0)
+    history_weight = history_weight.where(valid_model, 0.0)
+    blended = history_weight * model.where(valid_model, 0.0) + (1.0 - history_weight) * fallback
+    if not np.isfinite(blended).all():
+        raise ValueError("Cold-start fallback inputs must produce finite probabilities")
     result = frame[["part_number", "cycles_since_install"]].copy()
     result["model_score"] = model
     result["fallback_score"] = fallback
@@ -66,6 +69,7 @@ def apply_cold_start_fallback(
     result["scoring_method"] = np.where(
         history_weight >= 1.0, "MODEL", "COLD_START_MODEL_BASELINE_BLEND"
     )
+    result.loc[~valid_model, "scoring_method"] = "BASELINE_MODEL_UNAVAILABLE"
     result["history_coverage_status"] = np.where(
         frame["cycles_since_install"] < min_history_cycles, "LIMITED_HISTORY", "SUFFICIENT_HISTORY"
     )
@@ -83,7 +87,7 @@ def _psi_bins(reference: pd.Series, bins: int) -> np.ndarray:
         raise ValueError("PSI reference contains no numeric values")
     edges = np.unique(np.quantile(clean, np.linspace(0.0, 1.0, bins + 1)))
     if len(edges) < 2:
-        edges = np.array([clean[0] - 0.5, clean[0] + 0.5])
+        edges = np.array([-np.inf, clean[0] - 0.5, clean[0] + 0.5, np.inf])
     edges[0], edges[-1] = -np.inf, np.inf
     return edges
 
@@ -96,6 +100,8 @@ def population_stability_index(
 ) -> float:
     reference_series = pd.Series(reference)
     current_series = pd.Series(current)
+    if reference_series.empty or current_series.empty:
+        raise ValueError("PSI inputs must be non-empty")
     edges = _psi_bins(reference_series, bins)
     reference_numeric = pd.to_numeric(reference_series, errors="coerce")
     current_numeric = pd.to_numeric(current_series, errors="coerce")

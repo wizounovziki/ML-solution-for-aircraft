@@ -1,0 +1,11 @@
+* text=auto
+.gitattributes text eol=lf
+*.py text eol=lf
+*.md text eol=lf
+*.yaml text eol=lf
+*.toml text eol=lf
+*.lock text eol=lf
+
+# Keep the registered protocol and saved acceptance evidence byte-for-byte.
+configs/acceptance_2027.json -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+reports/corrected_v2/** -text -eol whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol

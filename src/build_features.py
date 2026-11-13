@@ -9,6 +9,7 @@ from pathlib import Path
 import pandas as pd
 
 from src.features import add_causal_rolling_features, model_feature_columns
+from src.provenance import source_fingerprint
 
 
 def main() -> None:
@@ -30,6 +31,8 @@ def main() -> None:
         "input_sha256": hashlib.sha256(input_path.read_bytes()).hexdigest(),
         "output": str(output),
         "rows": len(features),
+        "output_sha256": hashlib.sha256(output.read_bytes()).hexdigest(),
+        "source_fingerprint": source_fingerprint(),
         "numeric_features": numeric,
         "categorical_features": categorical,
         "elapsed_seconds": time.perf_counter() - started,

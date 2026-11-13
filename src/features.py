@@ -80,7 +80,7 @@ def add_causal_rolling_features(
         values = group[list(sensor_columns)].to_numpy(dtype=float)
         for row_index in range(len(group)):
             for window in windows:
-                start = np.searchsorted(cycles, cycles[row_index] - window, side="right")
+                start = np.searchsorted(cycles, cycles[row_index] - window, side="left")
                 candidate = np.arange(start, row_index + 1)
                 eligible = candidate[
                     (event_ns[candidate] <= snapshot_ns[row_index])
@@ -95,6 +95,12 @@ def add_causal_rolling_features(
                         feature_arrays[name][output_index[row_index]] = statistics[sensor_index]
     for name, values in feature_arrays.items():
         work[name] = values
+    visible_now = (work[event_time_col] <= work[snapshot_time_col]) & (
+        work[available_col] <= work[snapshot_time_col]
+    )
+    work.loc[~visible_now, list(sensor_columns)] = np.nan
+    if "sensor_quality" in work:
+        work.loc[~visible_now, "sensor_quality"] = "UNAVAILABLE"
     work["history_coverage_cycles"] = np.minimum(work["cycles_since_install"], max(windows))
     work["is_cold_start"] = work["cycles_since_install"].lt(5).astype("int8")
     return add_missing_indicators(work, sensor_columns)
@@ -132,10 +138,28 @@ def model_feature_columns(frame: pd.DataFrame) -> tuple[list[str], list[str]]:
         ]
         if column in frame.columns
     ]
+    allowed_numeric = {
+        "snapshot_cycle", "aircraft_total_cycles", "aircraft_age_cycles",
+        "component_total_cycles", "component_flight_hours", "ambient_temperature",
+        "cycles_since_install", "reading_cycle", "is_legacy_aircraft", "csn", "cso",
+        "fault_code_count_last_10_cycles", "maintenance_count_last_30_cycles",
+        "history_coverage_cycles", "is_cold_start", *SENSOR_COLUMNS,
+        *(f"{sensor}_is_missing" for sensor in SENSOR_COLUMNS),
+        *(f"{sensor}_{stat}_last_{window}_cycles"
+          for sensor in SENSOR_COLUMNS for window in ROLLING_WINDOWS_CYCLES
+          for stat in ("mean", "std", "slope_per_cycle")),
+    }
+    unexpected = {
+        column for column in frame
+        if pd.api.types.is_numeric_dtype(frame[column])
+        and column not in allowed_numeric | excluded | set(categorical)
+    }
+    if unexpected:
+        raise ValueError(f"Undeclared numeric input columns: {sorted(unexpected)}")
     numeric = [
         column
         for column in frame.columns
-        if column not in excluded | set(categorical)
+        if column in allowed_numeric
         and pd.api.types.is_numeric_dtype(frame[column])
     ]
     return numeric, categorical

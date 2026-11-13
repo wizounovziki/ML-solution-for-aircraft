@@ -48,12 +48,32 @@ def _restore_decisions(
 
 
 def _model_input(frame: pd.DataFrame, bundle: dict[str, Any]) -> pd.DataFrame:
+    if bundle["model_family"] == "logistic":
+        original = frame[bundle["numeric_columns"] + bundle["categorical_columns"]]
+        preprocessor = bundle["model"]["preprocess"]
+        transformed = preprocessor.transform(original)
+        if hasattr(transformed, "toarray"):
+            transformed = transformed.toarray()
+        return pd.DataFrame(transformed, columns=preprocessor.get_feature_names_out(), index=frame.index)
     return transform_lightgbm_features(
         frame,
         bundle["numeric_columns"],
         bundle["categorical_columns"],
         bundle["category_maps"],
     )
+
+
+def _explanation(model_input: pd.DataFrame, bundle: dict[str, Any]) -> dict[str, Any]:
+    if bundle["model_family"] == "lightgbm":
+        return lightgbm_raw_explanations(bundle["model"], model_input, model_input)
+    model = bundle["model"]["model"]
+    contributions = model_input.to_numpy() * model.coef_[0]
+    raw = model.decision_function(model_input.to_numpy())
+    reconstructed = float(model.intercept_[0]) + contributions.sum(axis=1)
+    error = float(np.max(np.abs(raw - reconstructed)))
+    if error > 1e-5:
+        raise ValueError("Logistic explanation additivity check failed")
+    return {"values": contributions, "additivity_max_error": error}
 
 
 def _card(
@@ -93,7 +113,7 @@ def _cards_markdown(cards: list[dict[str, Any]]) -> str:
     lines = [
         "# 高风险部件 SHAP 解释卡",
         "",
-        "SHAP 贡献对应 LightGBM 原始 log-odds；风险分数为校准及冷启动混合后的概率。模型归因不等于物理根因。",
+        "贡献对应模型原始 log-odds；风险分数为校准及冷启动混合后的概率。LightGBM 使用 SHAP；逻辑回归使用变换特征相对零参考值的线性贡献。",
         "",
     ]
     for index, card in enumerate(cards, start=1):
@@ -145,14 +165,15 @@ def generate_explanations(
     labeled = decisions.loc[decisions[TARGET].notna()]
     positive = labeled.loc[labeled[TARGET].eq(1)]
     negative = labeled.loc[labeled[TARGET].eq(0)]
+    positive_sample = positive.sample(n=min(1000, len(positive)), random_state=20261112)
     negative_sample = negative.sample(
-        n=min(2000 - len(positive), len(negative)), random_state=20261112
+        n=min(2000 - len(positive_sample), len(negative)), random_state=20261112
     )
-    summary_frame = pd.concat([positive, negative_sample]).sample(
+    summary_frame = pd.concat([positive_sample, negative_sample]).sample(
         frac=1, random_state=20261112
     )
     summary_input = _model_input(summary_frame, bundle)
-    summary_explanation = lightgbm_raw_explanations(bundle["model"], summary_input, summary_input)
+    summary_explanation = _explanation(summary_input, bundle)
     save_global_shap_summary(
         summary_explanation["values"], summary_input, reports / "figures" / "shap_summary.png"
     )
@@ -168,7 +189,7 @@ def generate_explanations(
     true_alerts = alerts.loc[alerts[TARGET].eq(1)].sort_values("risk_score", ascending=False)
     selected = true_alerts.drop_duplicates("component_id").head(2)
     selected_input = _model_input(selected, bundle)
-    selected_explanation = lightgbm_raw_explanations(bundle["model"], selected_input, selected_input)
+    selected_explanation = _explanation(selected_input, bundle)
     cards = [
         _card(row, selected_input, selected_explanation["values"], position, freeze["threshold"])
         for position, (_, row) in enumerate(selected.iterrows())
@@ -181,7 +202,7 @@ def generate_explanations(
     false_positive_card = None
     if len(false_positive):
         false_input = _model_input(false_positive, bundle)
-        false_explanation = lightgbm_raw_explanations(bundle["model"], false_input, false_input)
+        false_explanation = _explanation(false_input, bundle)
         false_positive_card = _card(
             false_positive.iloc[0], false_input, false_explanation["values"], 0, freeze["threshold"]
         )
@@ -192,12 +213,13 @@ def generate_explanations(
         "source_test_predictions_sha256": _sha256(test / "test_predictions.parquet"),
         "freeze_manifest_sha256": _sha256(experiment / "freeze_manifest.json"),
         "summary_rows": len(summary_input),
+        "explanation_method": "tree_shap_raw" if bundle["model_family"] == "lightgbm" else "linear_transformed_zero_reference",
         "summary_additivity_max_error": summary_explanation["additivity_max_error"],
         "alert_additivity_max_error": selected_explanation["additivity_max_error"],
         "high_risk_card_count": len(cards),
         "false_positive_card": false_positive_card is not None,
         "false_negative_card": None,
-        "false_negative_note": "The frozen test had 20/20 detected events; no false-negative event exists to display.",
+        "false_negative_note": "Event misses are listed in the frozen acceptance report.",
         "reason_coded_final_alerts": int(decisions.loc[decisions["final_alert"], "reason_codes"].ne("").sum()),
         "final_alerts": int(decisions["final_alert"].sum()),
     }

@@ -1,0 +1,9 @@
+...........................                                              [100%]
+============================== warnings summary ===============================
+tests/test_models.py::test_logistic_and_lightgbm_calibration_and_raw_shap
+tests/test_models.py::test_logistic_and_lightgbm_calibration_and_raw_shap
+  C:\Users\WINDOWS\Desktop\mro\.venv\Lib\site-packages\shap\explainers\_tree.py:578: UserWarning: LightGBM binary classifier with TreeExplainer shap values output has changed to a list of ndarray
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+27 passed, 2 warnings in 4.45s

@@ -11,8 +11,9 @@ def main() -> None:
     parser.add_argument("--features", default="artifacts/features/mock_v0_2_0/features.parquet")
     parser.add_argument("--split", default="artifacts/splits/mock_v0_2_0/split_manifest.parquet")
     parser.add_argument("--output", required=True)
+    parser.add_argument("--acceptance-protocol")
     args = parser.parse_args()
-    manifest = run_validation_selection(args.features, args.split, args.output)
+    manifest = run_validation_selection(args.features, args.split, args.output, args.acceptance_protocol)
     print(json.dumps(manifest, indent=2))
 
 

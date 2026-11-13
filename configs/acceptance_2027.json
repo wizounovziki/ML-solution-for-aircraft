@@ -1,0 +1,31 @@
+{
+  "protocol_id": "independent_2027_v1",
+  "start_inclusive": "2027-01-01T00:00:00+00:00",
+  "end_exclusive": "2032-01-01T00:00:00+00:00",
+  "minimum_events": 100,
+  "target_event_recall": 0.8,
+  "max_alert_rate": 0.05,
+  "bootstrap_iterations": 1000,
+  "dataset_config": {
+    "dataset_version": "0.3.0-acceptance-2027",
+    "entity_namespace": "ACC2027",
+    "seed": 20261113,
+    "start_date": "2027-01-01",
+    "time_zone": "UTC",
+    "n_aircraft": 60,
+    "cycles_per_aircraft": 2400,
+    "snapshot_interval_cycles": 5,
+    "prediction_horizon_cycles": 30,
+    "days_per_cycle": 0.75,
+    "unscheduled_removal_probability": 0.85,
+    "mean_life_cycles": {
+      "ENGINE": 1260,
+      "HYDRAULIC_PUMP": 1020,
+      "AVIONICS_COMPUTER": 1380,
+      "BRAKE_ACTUATOR": 900
+    },
+    "missing_rate": 0.05,
+    "outlier_rate": 0.001
+  },
+  "dataset_config_sha256": "c6e93578ea801040f8c97afad6b47ac34132fafdf6a9d40a86c8868c6d77392e"
+}

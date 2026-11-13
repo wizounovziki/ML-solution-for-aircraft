@@ -1,0 +1,87 @@
+{
+  "summary": {
+    "dataset_version": "0.3.0-acceptance-2027",
+    "seed": 20261113,
+    "prediction_horizon_cycles": 30,
+    "snapshot_interval_cycles": 5,
+    "rows": {
+      "aircraft": 60,
+      "components": 712,
+      "component_snapshots": 115016,
+      "sensor_readings": 115016,
+      "fault_events": 3571,
+      "maintenance_events": 2092,
+      "removal_events": 472,
+      "labels": 115016,
+      "mro_dataset": 115016
+    },
+    "aircraft": 60,
+    "components": 712,
+    "removals_by_type": {
+      "UNSCHEDULED": 393,
+      "SCHEDULED": 79
+    },
+    "labeled_snapshots": 113130,
+    "censored_snapshots": 1886,
+    "positive_snapshots": 2358,
+    "positive_snapshot_rate": 0.020843277645186953,
+    "unscheduled_events_with_positive_snapshot": 393
+  },
+  "files": {
+    "aircraft": {
+      "csv": "aircraft.csv",
+      "csv_sha256": "58a8f4b4c3c3fd40795863200379de91dbddd0872c793726a46791e1a980ca24",
+      "parquet": "aircraft.parquet",
+      "parquet_sha256": "f04ea252ec8287bdcbc126812dafd5c141b6735fffb970f6262585f47c2f373c"
+    },
+    "components": {
+      "csv": "components.csv",
+      "csv_sha256": "ab62fa8a75194a02273545330ba32bcc27882461925d2a5cd76c2616a2d9eedf",
+      "parquet": "components.parquet",
+      "parquet_sha256": "b5c1440194e5d6184141710565217cdeb1aaaab0830aaac29679118577b5aaa5"
+    },
+    "component_snapshots": {
+      "csv": "component_snapshots.csv",
+      "csv_sha256": "297b020630d0b6c84ac8a6e25d6554e16070af891f986215f070d437d4d45515",
+      "parquet": "component_snapshots.parquet",
+      "parquet_sha256": "a4e902fdd4cadfa6833a90b892fefdce287b5bc699931c4f6f71eeaa5ce09db6"
+    },
+    "sensor_readings": {
+      "csv": "sensor_readings.csv",
+      "csv_sha256": "ec3074d3d25e912d1ac658042fac41da1a350beff65d254797b1eabaac2f5283",
+      "parquet": "sensor_readings.parquet",
+      "parquet_sha256": "f62d5d72c9674b59d96a1e3ef43d8db44458c685966638dbf8ad48d9cff290c6"
+    },
+    "fault_events": {
+      "csv": "fault_events.csv",
+      "csv_sha256": "bcf5e246a38b0ad3d298167981c436025fbc4142d26713098eba227aba81c7f1",
+      "parquet": "fault_events.parquet",
+      "parquet_sha256": "0002ccaf57f9367e9281b03b29f7b8dd37ad2282e11ff808b61c97393747b1e4"
+    },
+    "maintenance_events": {
+      "csv": "maintenance_events.csv",
+      "csv_sha256": "1170e3ac914cbb3783cfab1282b227c0a5073be01e162d281b94109fda48ef31",
+      "parquet": "maintenance_events.parquet",
+      "parquet_sha256": "c0c41cc338a334f3285f39f0043016b9aecd7a90c5320888d9bf3f87cc3bc8fb"
+    },
+    "removal_events": {
+      "csv": "removal_events.csv",
+      "csv_sha256": "72fc333579eb355bfc6c0155b4229b457c25234454ab9a07e2d81f87d6f55c5a",
+      "parquet": "removal_events.parquet",
+      "parquet_sha256": "5efc2f3097db9f77e7e0134f6d7c0cad3002e52d92ee46b34852b6f580b3744e"
+    },
+    "labels": {
+      "csv": "labels.csv",
+      "csv_sha256": "ca9d212ae499d4e15050098b8a12e1db2f426963bce0815dd7cc84e4e9610a86",
+      "parquet": "labels.parquet",
+      "parquet_sha256": "088a7fb70abcc9ba7b2aa0b86dd295a2374181a95d7503bda97777fcfb5f6dbe"
+    },
+    "mro_dataset": {
+      "csv": "mro_dataset.csv",
+      "csv_sha256": "0747dcb9dac49552b9d114243e1c9853609b381f5c46f2250572836b199a7fbf",
+      "parquet": "mro_dataset.parquet",
+      "parquet_sha256": "63c4a7cd564a0613d4b34b48053af2381f12058bab57d02adabed2780b65d7aa"
+    }
+  },
+  "generated_at_utc": "2026-11-13T01:25:15.506158+00:00"
+}

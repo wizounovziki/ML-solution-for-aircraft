@@ -144,7 +144,7 @@ def local_reason_card(
         "component_id": component_id,
         "risk_score": float(calibrated_risk),
         "threshold": float(threshold),
-        "raw_score_semantics": "Contributions apply to LightGBM log-odds, not calibrated probability",
+        "raw_score_semantics": "Contributions apply to model log-odds, not calibrated probability",
         "selection_scope": "Top physical/operational features after excluding pure clock columns",
         "top_reasons": reasons,
         "suggested_mro_action": "安排针对性检查并核实传感器、故障和维修证据；不得仅凭评分直接拆换部件。",
@@ -161,8 +161,26 @@ def attach_alert_reason_codes(
     alerts = result.loc[result["final_alert"].astype(bool)]
     if alerts.empty:
         return result
+    if bundle["model_family"] == "logistic":
+        pipeline = bundle["model"]
+        inputs = alerts[bundle["numeric_columns"] + bundle["categorical_columns"]]
+        transformed = pipeline["preprocess"].transform(inputs)
+        contributions = np.asarray(transformed * pipeline["model"].coef_[0]) if isinstance(
+            transformed, np.ndarray
+        ) else transformed.multiply(pipeline["model"].coef_[0]).toarray()
+        names = pipeline["preprocess"].get_feature_names_out()
+        raw = pipeline.decision_function(inputs)
+        if not np.allclose(contributions.sum(axis=1) + pipeline["model"].intercept_[0], raw):
+            raise ValueError("Logistic explanation additivity check failed")
+        for position, index in enumerate(alerts.index):
+            order = np.argsort(np.abs(contributions[position]))[::-1][:3]
+            result.loc[index, "reason_codes"] = ";".join(
+                f"{'HIGH' if contributions[position, j] > 0 else 'LOW'}_LINEAR_{names[j]}"
+                for j in order
+            )
+        return result
     if bundle["model_family"] != "lightgbm":
-        raise ValueError("Alert reason-code integration currently requires the LightGBM bundle")
+        raise ValueError(f"Unsupported model family: {bundle['model_family']}")
     model_input = transform_lightgbm_features(
         alerts,
         bundle["numeric_columns"],

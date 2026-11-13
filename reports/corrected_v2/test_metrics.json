@@ -1,0 +1,70 @@
+{
+  "freeze_manifest_sha256": "a1e2ad78faa7681c07d645765edba4a086818a4082d8342c2f15036be1a51996",
+  "frozen_model_sha256": "7669fc73c8393d89f9fcc1e466f0e3b6aa771dd458fa3574fbea1b74337f2fee",
+  "candidate_id": "logistic_unweighted",
+  "threshold": 0.9995918400998122,
+  "suppression_cycles": 30,
+  "evaluation_features_sha256": "9febfc5620dc545a95b9d50ff55d90c8e9056b370c49286d0bcde25680ef3343",
+  "evaluation_split_sha256": "a3a3bf44264d89f208cc7232b87e597fd21a41349535e9f4a577db53264ed762",
+  "acceptance_evidence": {
+    "protocol_id": "independent_2027_v1",
+    "protocol_sha256": "790dde36f3b8815745fb2cc4036857ace2df28eb98a50df42b1368dd34fec099",
+    "data_manifest_sha256": "c6fcaa307b1328f65edfb83e21968a7848e2d2c6b9fb1230b1e85eccce6d14de",
+    "data_version": "0.3.0-acceptance-2027",
+    "seed": 20261113,
+    "generated_at_utc": "2026-11-13T01:25:15.506158+00:00",
+    "frozen_at_utc": "2026-11-13T01:25:10.299196+00:00",
+    "previous_latest_snapshot": "2026-12-06T00:00:00+00:00",
+    "first_snapshot": "2027-01-04T18:00:00+00:00",
+    "last_snapshot": "2031-12-06T00:00:00+00:00",
+    "entity_intersections": {
+      "aircraft_id": 0,
+      "component_id": 0,
+      "installation_id": 0,
+      "snapshot_id": 0,
+      "removal_event_id": 0
+    },
+    "aircraft": 60,
+    "components": 712,
+    "rows": 115016
+  },
+  "alert_rate": 0.004008137998191556,
+  "alerts_per_100": 0.40081379981915555,
+  "false_positives_per_100": 0.0,
+  "precision": 1.0,
+  "snapshot_recall": 0.1628498727735369,
+  "pr_auc": 0.9590176863809144,
+  "event_recall": 0.9770992366412213,
+  "pending_outcome_alerts": 77,
+  "scored_components": 115016,
+  "labeled_components": 113130,
+  "batches": 480,
+  "overall_alert_rate": 0.004008137998191556,
+  "max_batch_alert_rate": 0.020833333333333332,
+  "over_capacity_batches": 0,
+  "capacity_deferred": 0,
+  "suppressed": 434,
+  "brier_score": 0.003754409551115521,
+  "roc_auc": 0.9958773834230622,
+  "actual_unscheduled_events": 393,
+  "detected_events": 384,
+  "mean_first_alert_lead_cycles": 7.645833333333333,
+  "median_first_alert_lead_cycles": 7.0,
+  "min_first_alert_lead_cycles": 1.0,
+  "max_first_alert_lead_cycles": 17.0,
+  "event_recall_wilson_95_iid_reference": [
+    0.9570557693309125,
+    0.9879059821816409
+  ],
+  "bootstrap_95_percent_interval": {
+    "event_recall": [
+      0.9626835741080693,
+      0.9896647486613922
+    ],
+    "alert_rate": [
+      0.003824397124809341,
+      0.004191560397501574
+    ]
+  },
+  "sla_met": true
+}

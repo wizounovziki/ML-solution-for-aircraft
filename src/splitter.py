@@ -198,6 +198,7 @@ def create_joint_split_manifest(
 
     manifest["flight_date"] = flight_date.to_numpy()
     manifest["label_available_at"] = label_available.to_numpy()
+    manifest["selection_cutoff"] = validation_cutoff
     manifest["final_use"] = "excluded"
     manifest["exclusion_reason"] = "outside_entity_time_assignment"
 
@@ -261,3 +262,13 @@ def validate_joint_split(
     calibration_labels = manifest[manifest["final_use"].eq("calibration")]
     assert train_labels["label_available_at"].max() < train_end
     assert calibration_labels["label_available_at"].max() < calibration_end
+
+
+def mask_unavailable_selection_labels(frame: pd.DataFrame, cutoff: str | pd.Timestamp) -> pd.DataFrame:
+    """Keep the scoring population while hiding outcomes unavailable at policy freeze."""
+    result = frame.copy()
+    available = _utc(result["label_available_at"])
+    visible = available.notna() & available.lt(pd.Timestamp(cutoff))
+    result.loc[~visible, "unscheduled_removal_within_30_cycles"] = pd.NA
+    result.loc[~visible, "removal_event_id"] = None
+    return result

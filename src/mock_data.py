@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+from datetime import datetime, timezone
 import json
 from pathlib import Path
 from typing import Any
@@ -150,6 +151,8 @@ def _build_combined_dataset(frames: dict[str, pd.DataFrame]) -> pd.DataFrame:
 
 def build_dataset(config: dict[str, Any]) -> dict[str, pd.DataFrame]:
     rng = np.random.default_rng(config["seed"])
+    prefix = str(config.get("entity_namespace", ""))
+    prefix = prefix + "-" if prefix else ""
     start = pd.Timestamp(config["start_date"])
     if start.tzinfo is None:
         start = start.tz_localize(config.get("time_zone", "UTC"))
@@ -171,7 +174,7 @@ def build_dataset(config: dict[str, Any]) -> dict[str, pd.DataFrame]:
     models = ["A320", "A321", "B737-800", "B737-CLASSIC"]
 
     for aircraft_index in range(1, int(config["n_aircraft"]) + 1):
-        aircraft_id = f"AC{aircraft_index:04d}"
+        aircraft_id = f"{prefix}AC{aircraft_index:04d}"
         environment = str(rng.choice(environments))
         aircraft_model = str(rng.choice(models, p=[0.3, 0.25, 0.3, 0.15]))
         initial_aircraft_age = int(rng.integers(500, 4000))
@@ -191,7 +194,7 @@ def build_dataset(config: dict[str, Any]) -> dict[str, pd.DataFrame]:
             install_cycle = 0
             installation_number = 1
             while install_cycle <= total_cycles:
-                component_serial = f"C{len(component_rows) + 1:07d}"
+                component_serial = f"{prefix}C{len(component_rows) + 1:07d}"
                 installation_id = f"INS-{component_serial}"
                 spec = FAMILY_SPECS[family]
                 harshness = 0.82 if environment in {"HOT", "HIGH_HUMIDITY", "HOT_DUSTY"} else 1.0
@@ -215,7 +218,7 @@ def build_dataset(config: dict[str, Any]) -> dict[str, pd.DataFrame]:
                     if removal_observed
                     else None
                 )
-                removal_event_id = f"REM{len(removal_rows) + 1:07d}" if removal_observed else None
+                removal_event_id = f"{prefix}REM{len(removal_rows) + 1:07d}" if removal_observed else None
                 component_model = _choose_model(family, install_cycle, total_cycles, rng)
                 component_rows.append(
                     {
@@ -254,7 +257,7 @@ def build_dataset(config: dict[str, Any]) -> dict[str, pd.DataFrame]:
                 first_snapshot = ((install_cycle + interval) // interval) * interval
                 last_snapshot = min(removal_cycle - 1, total_cycles)
                 for snapshot_cycle in range(first_snapshot, last_snapshot + 1, interval):
-                    snapshot_id = f"S{len(snapshot_rows) + 1:08d}"
+                    snapshot_id = f"{prefix}S{len(snapshot_rows) + 1:08d}"
                     age = snapshot_cycle - install_cycle
                     cycles_to_end = removal_cycle - snapshot_cycle
                     degradation = float(np.clip(age / lifetime, 0.0, 1.0))
@@ -342,7 +345,7 @@ def build_dataset(config: dict[str, Any]) -> dict[str, pd.DataFrame]:
                         available_cycle = age + available_delay
                         fault_rows.append(
                             {
-                                "fault_event_id": f"FLT{len(fault_rows) + 1:08d}",
+                                "fault_event_id": f"{prefix}FLT{len(fault_rows) + 1:08d}",
                                 "snapshot_id": snapshot_id,
                                 "component_serial": component_serial,
                                 "installation_id": installation_id,
@@ -368,7 +371,7 @@ def build_dataset(config: dict[str, Any]) -> dict[str, pd.DataFrame]:
                         available_cycle = age + available_delay
                         maintenance_rows.append(
                             {
-                                "maintenance_event_id": f"MNT{len(maintenance_rows) + 1:08d}",
+                                "maintenance_event_id": f"{prefix}MNT{len(maintenance_rows) + 1:08d}",
                                 "snapshot_id": snapshot_id,
                                 "component_serial": component_serial,
                                 "installation_id": installation_id,
@@ -508,7 +511,8 @@ def write_dataset(
 ) -> dict[str, Any]:
     output = Path(output_dir)
     output.mkdir(parents=True, exist_ok=True)
-    manifest: dict[str, Any] = {"summary": dataset_summary(frames, config), "files": {}}
+    manifest: dict[str, Any] = {"summary": dataset_summary(frames, config), "files": {},
+                                "generated_at_utc": datetime.now(timezone.utc).isoformat()}
     for name, frame in frames.items():
         csv_path = output / f"{name}.csv"
         parquet_path = output / f"{name}.parquet"
@@ -518,6 +522,7 @@ def write_dataset(
             "csv": csv_path.name,
             "csv_sha256": hashlib.sha256(csv_path.read_bytes()).hexdigest(),
             "parquet": parquet_path.name,
+            "parquet_sha256": hashlib.sha256(parquet_path.read_bytes()).hexdigest(),
         }
     with (output / "generation_config.yaml").open("w", encoding="utf-8") as handle:
         yaml.safe_dump(config, handle, sort_keys=False)

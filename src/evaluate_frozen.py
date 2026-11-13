@@ -19,6 +19,8 @@ from src.threshold import (
     evaluate_complete_alert_policy,
 )
 from src.training import TARGET, safe_roc_auc, score_with_bundle, write_prediction_contract
+from src.provenance import verify_frozen_experiment
+from src.acceptance import validate_acceptance_inputs
 
 
 def _sha256(path: str | Path) -> str:
@@ -45,17 +47,28 @@ def _cluster_bootstrap(
     decisions: pd.DataFrame, iterations: int = 200, seed: int = 20261112
 ) -> dict[str, list[float]]:
     rng = np.random.default_rng(seed)
-    groups = decisions["entity_group_id"].drop_duplicates().to_numpy()
-    by_group = {group: frame for group, frame in decisions.groupby("entity_group_id")}
+    if iterations < 1 or decisions.empty:
+        raise ValueError("Bootstrap requires non-empty decisions and positive iterations")
+    totals = decisions.groupby("entity_group_id").agg(
+        alerts=("final_alert", "sum"), rows=("final_alert", "size")
+    )
+    positive = decisions.loc[decisions[TARGET].eq(1) & decisions["removal_event_id"].notna()]
+    if positive.groupby("removal_event_id")["entity_group_id"].nunique().gt(1).any():
+        raise ValueError("An event must belong to exactly one bootstrap group")
+    events = positive.groupby(["entity_group_id", "removal_event_id"])["final_alert"].max()
+    event_totals = events.groupby(level=0).agg(["sum", "count"]).reindex(totals.index, fill_value=0)
+    detected = event_totals["sum"].to_numpy(dtype=float)
+    counts = event_totals["count"].to_numpy(dtype=float)
+    alerts, rows = totals["alerts"].to_numpy(), totals["rows"].to_numpy()
     samples = {"event_recall": [], "alert_rate": []}
     for _ in range(iterations):
-        selected = rng.choice(groups, size=len(groups), replace=True)
-        bootstrap = pd.concat([by_group[group] for group in selected], ignore_index=True)
-        metrics = evaluate_complete_alert_policy(bootstrap)
-        samples["event_recall"].append(metrics["event_recall"])
-        samples["alert_rate"].append(metrics["alert_rate"])
+        selected = rng.choice(len(totals), size=len(totals), replace=True)
+        event_count = counts[selected].sum()
+        if event_count:
+            samples["event_recall"].append(float(detected[selected].sum() / event_count))
+        samples["alert_rate"].append(float(alerts[selected].sum() / rows[selected].sum()))
     return {
-        key: [float(value) for value in np.quantile(values, [0.025, 0.975])]
+        key: [float(value) for value in np.quantile(values, [0.025, 0.975])] if values else [None, None]
         for key, values in samples.items()
     }
 
@@ -82,6 +95,7 @@ def evaluate_frozen(
     data_dir: str | Path,
     output_dir: str | Path,
     bootstrap_iterations: int = 200,
+    acceptance_protocol_path: str | Path | None = None,
 ) -> dict[str, Any]:
     experiment = Path(experiment_dir)
     output = Path(output_dir)
@@ -90,13 +104,17 @@ def evaluate_frozen(
     evaluation_marker = experiment / "TEST_EVALUATED.json"
     if evaluation_marker.exists():
         raise ValueError("The frozen model has already been evaluated; choose a new independent evaluation protocol")
-    with (experiment / "freeze_manifest.json").open(encoding="utf-8") as handle:
-        freeze = json.load(handle)
+    freeze = verify_frozen_experiment(experiment)
     if freeze["test_evaluated"]:
         raise ValueError("The frozen model has already been marked as evaluated")
-    if freeze["features_sha256"] != _sha256(features_path):
+    acceptance_evidence = None
+    if acceptance_protocol_path is not None:
+        acceptance_evidence = validate_acceptance_inputs(
+            freeze, acceptance_protocol_path, features_path, split_path, data_dir
+        )
+    elif freeze["features_sha256"] != _sha256(features_path):
         raise ValueError("Feature artifact hash differs from the frozen training input")
-    if freeze["split_sha256"] != _sha256(split_path):
+    if acceptance_protocol_path is None and freeze["split_sha256"] != _sha256(split_path):
         raise ValueError("Split manifest hash differs from the frozen selection input")
     bundle = joblib.load(experiment / "frozen_model.joblib")
 
@@ -114,10 +132,10 @@ def evaluate_frozen(
         max_alert_rate=freeze["max_alert_rate"],
     )
     decisions["model_version"] = freeze["candidate_id"]
-    decisions["feature_version"] = freeze["features_sha256"]
+    decisions["feature_version"] = _sha256(features_path)
     decisions["calibrator_version"] = "sigmoid_v1"
     decisions["policy_version"] = "batch_cap_5pct_suppress_30_v1"
-    decisions["data_version"] = freeze["data_version"]
+    decisions["data_version"] = acceptance_evidence["data_version"] if acceptance_evidence else freeze["data_version"]
     decisions = attach_alert_reason_codes(decisions, bundle, freeze["threshold"])
 
     metrics = evaluate_complete_alert_policy(decisions)
@@ -130,6 +148,14 @@ def evaluate_frozen(
     metrics["actual_unscheduled_events"] = int(decisions["removal_event_id"].dropna().nunique())
     removals = pd.read_parquet(Path(data_dir) / "removal_events.parquet")
     metrics.update(_lead_time_metrics(decisions, removals))
+    event_count = metrics["actual_unscheduled_events"]
+    if event_count:
+        recall = metrics["event_recall"]
+        z = 1.959963984540054
+        denominator = 1.0 + z * z / event_count
+        center = (recall + z * z / (2 * event_count)) / denominator
+        radius = z * np.sqrt(recall * (1 - recall) / event_count + z * z / (4 * event_count**2)) / denominator
+        metrics["event_recall_wilson_95_iid_reference"] = [max(0., center - radius), min(1., center + radius)]
     metrics["bootstrap_95_percent_interval"] = _cluster_bootstrap(
         decisions, iterations=bootstrap_iterations
     )
@@ -138,6 +164,11 @@ def evaluate_frozen(
         and metrics["alert_rate"] <= MAX_ALERT_RATE
         and metrics["over_capacity_batches"] == 0
     )
+    if acceptance_evidence is not None:
+        if bootstrap_iterations != freeze["acceptance_protocol"]["bootstrap_iterations"]:
+            raise ValueError("Bootstrap iterations differ from the preregistered count")
+        metrics["sla_met"] = bool(metrics["sla_met"] and metrics["actual_unscheduled_events"] >=
+                                  freeze["acceptance_protocol"]["minimum_events"])
 
     output.mkdir(parents=True)
     write_prediction_contract(decisions, output / "test_predictions.parquet")
@@ -156,6 +187,9 @@ def evaluate_frozen(
         "candidate_id": freeze["candidate_id"],
         "threshold": freeze["threshold"],
         "suppression_cycles": freeze["suppression_cycles"],
+        "evaluation_features_sha256": _sha256(features_path),
+        "evaluation_split_sha256": _sha256(split_path),
+        "acceptance_evidence": acceptance_evidence,
         **metrics,
     }
     with (output / "test_metrics.json").open("w", encoding="utf-8") as handle:
@@ -180,6 +214,7 @@ def main() -> None:
     parser.add_argument("--data-dir", default="data/generated/mock_v0_2_0")
     parser.add_argument("--output", required=True)
     parser.add_argument("--bootstrap-iterations", type=int, default=200)
+    parser.add_argument("--acceptance-protocol")
     args = parser.parse_args()
     result = evaluate_frozen(
         args.experiment,
@@ -188,6 +223,7 @@ def main() -> None:
         args.data_dir,
         args.output,
         args.bootstrap_iterations,
+        args.acceptance_protocol,
     )
     print(json.dumps(result, indent=2))
 
